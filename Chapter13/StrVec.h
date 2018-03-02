@@ -4,7 +4,9 @@ public:
     StrVec(): // allocator 成员进行默认初始化
         elements(nullptr), first_free(nullptr), cap(nullptr) { }
     StrVec(const StrVec&);              // 拷贝构造函数
+    StrVec(StrVec&&) noexcept;          // 移动构造函数
     StrVec &operator=(const StrVec&);   // 拷贝赋值运算符
+    StrVec &operator=(StrVec &&) noexcept; // 移动赋值运算符
     ~StrVec();                          // 析构函数
     void push_back(const std::string&); // 拷贝元素
     size_t size() const { return first_free - elements; }
@@ -92,5 +94,45 @@ void StrVec::reallocate()
     // 更新我们的数据结构，执行新元素
     elements = newdata;
     first_free = dest;
+    cap = elements + newcapacity;
+}
+
+StrVec::StrVec(StrVec &&s) noexcept // 移动操作不应抛出任何异常
+    // 成员初始化器接管 s 中的资源
+    : elements(s.elements), first_free(s.first_free), cap(s.cap)
+{
+    // 令 s 进入这样的状态 -- 对其运行析构函数是安全的
+    s.elements = s.first_free = s.cap = nullptr;
+}
+
+// 使用移动迭代器
+StrVec &StrVec::operator=(StrVec &&rhs) noexcept
+{
+    // 直接检测自赋值
+    if (this != &rhs) {
+        free();                 // 释放已有元素
+        elements = rhs.elements;// 从 rhs 接管资源
+        frist_free = rhs.first_free;
+        cap = rhs.cap;
+        // 将 rhs 置于可析构状态
+        rhs.elements = rhs.first_free = rhs.cap = nullptr;
+    }
+    return *this;
+}
+
+void StrVec::reallocate()
+{
+    // 分配两倍于当前规模的内存空间
+    auto newcapacity = size() ? 2 * size() : 1;
+    auto first = alloc.allocate(newcapacity);
+    // 移动元素
+    auto last = uninitialized_copy(make_move_iterator(begin()),
+                                   make_move_iterator(end()),
+                                   first);
+    // 释放旧空间
+    free();
+    // 更新指针
+    elements = first;
+    first_free = last;
     cap = elements + newcapacity;
 }
