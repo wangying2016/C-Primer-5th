@@ -167,3 +167,90 @@ HasPtr& HasPtr::operator=(HasPtr rhs)
     swap(*this, rhs);
     return *this;
 }
+
+class Message {
+    friend class Folder;
+public:
+    // folders 被隐式初始化为空集合
+    explicit Message(const std::string &str = ""):
+        contents(str) { }
+    // 拷贝控制成员，用来管理指向本 Message 的指针
+    Message(const Message&);            // 拷贝构造函数
+    Message& operator=(const Message&); // 拷贝赋值运算符
+    ~Message();                         // 析构函数
+    // 从给定 Folder 集合中添加/删除本 Message
+    void save(Folder&);
+    void remove(Folder&);
+private:
+    std::string contents;       // 实际消息文本
+    std::set<Folder*> folders;  // 包含本 Message 的 Folder
+    // 拷贝构造函数、拷贝赋值运算符和析构函数所使用的工具函数
+    void add_to_Folders(const Message&);
+    // 从 folders 中的每个 Folder 中删除本 Message
+    void remove_from_Folders();
+};
+
+void Message::save(Folder &f)
+{
+    folders.insert(&f);
+    f.addMsg(this);
+}
+
+void Message::remove(Folder &f)
+{
+    folders.erase(&f);
+    f.remMsg(this);
+}
+
+// 将本 Message 添加到指向 m 的 Folder 中
+void Message::add_to_Folders(const Message &m)
+{
+    for (auto f : m.folders)
+        f->addMsg(this);
+}
+
+Message::Message(const Message &m):
+    contents(m.contents), folders(m.folders)
+{
+    add_to_Folders(m);
+}
+
+// 从对应的 Folder 中删除本 Message
+void Message::remove_from_Folders()
+{
+    for (auto f : folders)
+        f->remMsg(this);
+}
+
+Message::~Message()
+{
+    remove_from_Folders();
+}
+
+Message& Message::operator=(const Message &rhs)
+{
+    // 通过先删除指针再插入它们来处理自赋值情况
+    remove_from_Folders();
+    contents = rhs.contents;
+    folders = rhs.folders;
+    add_toFolders(rhs);
+    return *this;
+}
+
+void swap(Message &lhs, Message &rhs)
+{
+    using std::swap; 
+    // 将每个消息的指针从它（原来）所在 Folder 中删除
+    for (auto f : lhs.folders)
+        f->remMsg(&lhs);
+    for (auto f : rhs.folders)
+        f->remMsg(&rhs);
+    // 交换 contents 和 Folder 指针 set
+    swap(lhs.folders, rhs.folders);
+    swap(lhs.contents, rhs.contents);
+    // 将每个 Message 的指针添加到它的（新）Folder 中
+    for (auto f : lhs.folders)
+        f->addMsg(&lhs)
+    for (auto f : rhs.folders)
+        f->addMsg(&rhs);
+}
