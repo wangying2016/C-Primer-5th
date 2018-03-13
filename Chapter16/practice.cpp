@@ -376,3 +376,137 @@ string debug_rep(const char *p)
 {
     return debug_rep(string(p));
 }
+
+// Args 是一个模板参数包；rest 是一个函数参数包
+// Args 表示零个或多个模板类型参数
+// rest 表示零个或多个函数参数
+template <typename T, typename... Args>
+void foo(const T &t, const Args& ... rest);
+
+template <typename ... Args>
+void g(Args ... args) 
+{
+    // 类型参数的数目
+    cout << sizeof...(Args) << endl;
+    // 函数参数的数目
+    cout << sizeof...(args) << endl;
+}
+
+// 用来终止递归并打印最后一个元素的函数
+// 此函数必须在可变参数版本的 print 定义之前声明
+template <typename T>
+ostream &print(ostream &os, const T &t)
+{
+    return os << t; // 包中最后一个元素之后不打印分隔符
+}
+// 包中除了最后一个元素之外的其他元素都会调用这个版本的 print
+template <typename T, typename... Args>
+ostream &print(ostream &os, const T &t, const Args&... rest)
+{
+    os << t << ", ";            // 打印第一个实参
+    return print(os, rest...);  // 递归调用，打印其他实参
+}
+
+template <typename T, typename... Args>
+ostream &
+print(ostream &os, const T &t, const Args&... rest) // 扩展 Args
+{
+    os << t << ", ";
+    return print(os, rest...);                      // 扩展 rest
+}
+
+// 在 print 调用中对每个实参调用 debug_rep
+template <typename... Args>
+ostream &errorMsg(ostream &os, const Args&... rest)
+{
+    // print (os, debug_rep(a1), debug_rep(a2), ..., debug_rep(an))
+    return print(os, debug_rep(rest)...);
+}
+
+class StrVec {
+public:
+    template <class... Args> void emplace_back(Args&&...);
+};
+
+template <class... Args>
+inline
+void StrVec::emplace_back(Args&&... args)
+{
+    chk_n_alloc();      // 如果需要的话重新分配 StrVec 内存空间
+    alloc.construct(first_free++, std::forward<Args>(args)...);
+}
+
+// fun 有零个或多个参数，每个参数都是一个模板参数类型的右值引用
+template <typename... Args>
+void fun(Args&&... args)    // 将 Args 扩展为一个右值引用的列表
+{
+    // work 的实参既扩展 Args 又扩展 args
+    work(std::forward<Args>(args)...);
+}
+
+// 第一个版本；可以比较任意两个类型
+template <typename T> int compare(const T&, const T&);
+// 第二个版本处理字符串字面常量
+template<size_t N, size_t M>
+int compare(const char (&)[N], const char (&)[M]);
+
+// compare 的特殊版本，处理字符数组的指针
+template <>
+int compare(const char* const &p1, const char* const &p2)
+{
+    return strcmp(p1, p2);
+}
+
+// 打开 std 命名空间，以便特例化 std::hash
+namespace std {
+template <> // 我们正在定义一个特例化版本，模板参数为 Sales_data
+struct hash<Sales_data>
+{
+    // 用来散列一个无序容器的类型必须要定义下列类型
+    typedef size_t result_type;
+    typedef Sales_data argument_type;   // 默认情况下，此类型需要==
+    size_t operator()(const Sales_data& s) const;
+    // 我们的类使用合成的拷贝控制成员和默认构造函数
+};
+size_t
+hash<Sales_data>::operator()(const Sales_data& s) const 
+{
+    return hash<string>()(s.bookNo) ^
+           hash<unsigned>()(s.unites_sold) ^
+           hash<double>()(s.revenue);
+}
+} // 关闭 std 命名空间；注意：右花括号之后没有分号
+
+template <class T> class std::hash; // 友元声明所需要的
+class Sales_data {
+friend class std::hash<Sales_data>;
+};
+
+// 原始的、最通用的版本
+template <class T> struct remove_reference {
+    typedef T type;
+};
+// 部分特例化版本，将用于左值引用和右值引用
+template <class T> struct remove_reference<T&>  // 左值引用
+    { typedef T type; };
+template <class T> struct remove_reference<T&&> // 右值引用
+    { typedef T type; };
+
+int i;
+// decltype(42)为 int，使用原始模板
+remove_reference<decltype(42)>::type a;
+// decltype(i) 为 int&，使用第一个 (T&) 部分特例化版本
+remove_reference<decltype(i)>::type b;
+// decltype(std::move(i)) 为 int&&，使用第二个（即T&&）部分特例化版本
+remove_reference<decltype(std::move(i))>::type c;
+
+template <typename T> struct Foo {
+    Foo(const T &t = T()): mem(t) { }
+    void Bar() { }
+    T mem;
+};
+template <>                 // 我们正在特例化一个模板
+void Foo<int>::Bar()        // 我们正在特例化 Foo<int> 的成员 Bar
+{
+    // 进行应用于 int 的特例化处理
+}
